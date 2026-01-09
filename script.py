@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer, util
 
 # stuff for the LLM/AI score thing
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
-target_word = "Anime"
+target_word = "Goku Dragon Ball character"
 target_embedding = embedder.encode(target_word, convert_to_tensor=True)
 score = 0 
 
@@ -15,9 +15,9 @@ headers = {
 }
 
 # starting URL, response to get the content on the page, current link, and the target link
-url ='https://en.wikipedia.org/wiki/broom'
+url ='https://en.wikipedia.org/wiki/Biology'
 response = requests.get(url, headers=headers)
-current_link = "/wiki/broom"
+current_link = "/wiki/Biology"
 
 
 # set that will help us keep track of every URL we've visited so that our script doesn't end up on an infinite loop or visit the same URL multiple times
@@ -66,7 +66,7 @@ def get_links(url):
     return None
 
 # while loop to keep searching for the target until we find it, this also keeps tracks of waht links we have visited
-while current_link != "/wiki/Anime":
+while current_link != "/wiki/Goku":
     full_url = "https://en.wikipedia.org" + current_link
     winner = get_links(full_url)
 
@@ -74,8 +74,8 @@ while current_link != "/wiki/Anime":
         current_link = winner['url']
         visited.add(current_link)
 
-        print(f"Jumped to: {winner['text']} | Score: {winner['score']:.4f}")
+        print(f"Jumped to: {winner['url']} | Score: {winner['score']:.4f}")
 
-        time.sleep(1)
+        time.sleep(0.1)  # be nice to Wikipedia's servers
     else:
         break
