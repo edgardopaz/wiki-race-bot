@@ -5,9 +5,9 @@ from collections import deque
 
 #LLM/AI scoring appraoch
 # stuff for the LLM/AI score thing
-# embedder = SentenceTransformer("all-MiniLM-L6-v2")
-# target_word = "Goku Dragon Ball character"
-# target_embedding = embedder.encode(target_word, convert_to_tensor=True)
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
+target_word = "Goku Dragon Ball character"
+target_embedding = embedder.encode(target_word, convert_to_tensor=True)
 # score = 0 
 
 # header needed to access the wiki content
@@ -82,18 +82,79 @@ headers = {
 #     else:
 #         break
 
+# bfs appraoch
+# visited = set()
 
-#bfs approach
+# def get_all_links(url):
+#     time.sleep(0.1)
+#     response = requests.get(url, headers=headers)
+
+#     soup = BeautifulSoup(response.text, 'html.parser')
+#     content = soup.find('div', id="mw-content-text")
+#     links = []
+
+#     if content:
+#         all_links = content.find_all('a', href=True)
+#         for link in all_links:
+#             href = link.get("href")
+#             text = link.get_text().strip()
+
+#             if (
+#                 href.startswith("/wiki/")
+#                 and ":" not in href
+#                 and not href.endswith((".png", ".svg", ".jpg", ".jpeg"))
+#                 and text
+#             ):
+#                 links.append(href)
+
+#     return links
+
+
+# def bfs(start, target):
+#     queue = deque([(start,[start])])
+#     visited = {start}
+
+#     while queue:
+#         current, path = queue.popleft()
+        
+#         print(f"Exploring: {current}")
+
+#         if current == target:
+#             return path
+        
+#         links = get_all_links("https://en.wikipedia.org" + current)
+#         for link in links:
+#             if link not in visited:
+#                 visited.add(link)
+#                 queue.append((link, path + [link]))
+
+#     return None
+
+# starting_link = "/wiki/Biology"
+# target_link = "/wiki/Goku"
+
+# print(f"Starting BFS from {starting_link} to {target_link}")
+# result = bfs(starting_link, target_link)
+
+# if result:
+#     print("Path found:")
+#     for step in result:
+#         print(f"-> {step}")
+# else:
+#     print("No path found.")
+
+# beam search approach
 
 visited = set()
 
-def get_all_links(url):
+def links_with_scores(url):
     time.sleep(0.1)
     response = requests.get(url, headers=headers)
 
     soup = BeautifulSoup(response.text, 'html.parser')
     content = soup.find('div', id="mw-content-text")
-    links = []
+
+    candidates = []
 
     if content:
         all_links = content.find_all('a', href=True)
@@ -107,41 +168,70 @@ def get_all_links(url):
                 and not href.endswith((".png", ".svg", ".jpg", ".jpeg"))
                 and text
             ):
-                links.append(href)
+                candidates.append({
+                    "text": text,
+                    "url": href,
+                    "score": 0,
+                })
+        if candidates:
+            texts = [c['text'] for c in candidates]
+            candidate_embeddings = embedder.encode(texts, convert_to_tensor=True)
+            cosine_scores = util.cos_sim(candidate_embeddings, target_embedding)
 
-    return links
+            for i, candidate in enumerate(candidates):
+                candidate['score'] = cosine_scores[i].item()
 
+            candidates.sort(key=lambda x: x['score'], reverse=True)
 
-def bfs(start, target):
-    queue = deque([(start,[start])])
-    visited = {start}
+    
+    return candidates
 
-    while queue:
-        current, path = queue.popleft()
-        
-        print(f"Exploring: {current}")
+def beam_search(start, target, beam_width = 5):
+    current_beam = [(start, [start])]
+    visited.add(start)
+    
+    depth = 0
 
-        if current == target:
-            return path
-        
-        links = get_all_links("https://en.wikipedia.org" + current)
-        for link in links:
-            if link not in visited:
-                visited.add(link)
-                queue.append((link, path + [link]))
+    while current_beam:
+        print(f"Depth: {depth}: Exploring {len(current_beam)} paths")
 
+        next_beam = []
+
+        for current_url, path in current_beam:
+            if current_url == target:
+                return path
+            
+            full_url = "https://en.wikipedia.org" + current_url
+            candidates = links_with_scores(full_url)
+
+            print(f" {current_url}: Found {len(candidates)} candidates")
+
+            for candidate in candidates[:beam_width]:
+                if candidate['url'] not in visited:
+                    visited.add(candidate['url'])
+                    next_beam.append((candidate['url'], path + [candidate['url']], candidate['score']))
+
+        next_beam.sort(key=lambda x: x[2], reverse=True)
+        current_beam = [(url, path) for url, path, score in next_beam[:beam_width]]
+
+        depth += 1
+
+        if depth > 20:
+            print("Max depth.")
+            break
     return None
 
-starting_link = "/wiki/Biology"
+start_link = "/wiki/Biology"
 target_link = "/wiki/Goku"
 
-print(f"Starting BFS from {starting_link} to {target_link}")
-result = bfs(starting_link, target_link)
+print(f"Starting beam search from {start_link} to {target_link}")
+print(f"Beam width: 5")
+
+result = beam_search(start_link, target_link, beam_width = 5)
 
 if result:
-    print("Path found:")
-    for step in result:
-        print(f"-> {step}")
+    print(f"Found path in {len(result)-1} steps:")
+    for i, step in enumerate(result):
+        print(f" {i}. {step}")
 else:
     print("No path found.")
-
